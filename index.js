@@ -5,6 +5,9 @@ const path = require('path');
 
 const app = express();
 
+// Trust Railway's proxy (fixes X-Forwarded-For error)
+app.set('trust proxy', 1);
+
 // Security headers
 app.use(helmet({
   contentSecurityPolicy: {
