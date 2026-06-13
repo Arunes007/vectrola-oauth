@@ -71,9 +71,9 @@ app.post('/auth/start', (req, res) => {
 });
 
 // =============================================================================
-// Step 2: Google redirects here with auth code
+// Step 2: Google redirects here with auth code - exchange and redirect to Obsidian
 // =============================================================================
-app.get('/callback', (req, res) => {
+app.get('/callback', async (req, res) => {
   const { code, state, error, error_description } = req.query;
 
   if (error) {
@@ -96,37 +96,22 @@ app.get('/callback', (req, res) => {
     });
   }
 
-  console.log(`Auth code received (state: ${state})`);
-  res.render('callback', {
-    success: true,
-    code,
-    state,
-    error: null,
-  });
-});
-
-// =============================================================================
-// Step 3: Plugin calls this to exchange code for tokens (server-side)
-// =============================================================================
-app.post('/auth/token', async (req, res) => {
-  const { code, state } = req.body;
-
-  if (!code || !state) {
-    return res.status(400).json({ error: 'Missing code or state' });
-  }
-
   // Get stored verifier
   const authData = pendingAuth.get(state);
   if (!authData) {
-    return res.status(400).json({ error: 'Invalid or expired state. Please try again.' });
+    console.log(`Invalid or expired state: ${state}`);
+    return res.render('callback', {
+      success: false,
+      error: 'Session expired. Please try signing in again from Obsidian.',
+      code: null,
+      state: null,
+    });
   }
 
   const { code_verifier } = authData;
-
-  // Clean up
   pendingAuth.delete(state);
 
-  // Exchange code for tokens using client_secret (server-side only!)
+  // Exchange code for tokens server-side
   try {
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -145,23 +130,37 @@ app.post('/auth/token', async (req, res) => {
 
     if (tokens.error) {
       console.error('Token exchange error:', tokens);
-      return res.status(400).json({ error: tokens.error_description || tokens.error });
+      return res.render('callback', {
+        success: false,
+        error: tokens.error_description || tokens.error,
+        code: null,
+        state: null,
+      });
     }
 
-    console.log(`Token exchange successful (state: ${state})`);
-    res.json({
-      access_token: tokens.access_token,
-      refresh_token: tokens.refresh_token,
-      expires_in: tokens.expires_in,
-    });
+    console.log(`Token exchange successful, redirecting to Obsidian (state: ${state})`);
+
+    // Redirect to Obsidian with tokens
+    const obsidianUrl = `obsidian://vectrola-auth?` +
+      `access_token=${encodeURIComponent(tokens.access_token)}` +
+      `&refresh_token=${encodeURIComponent(tokens.refresh_token || '')}` +
+      `&expires_in=${tokens.expires_in}` +
+      `&state=${encodeURIComponent(state)}`;
+
+    res.redirect(obsidianUrl);
   } catch (err) {
     console.error('Token exchange failed:', err);
-    res.status(500).json({ error: 'Token exchange failed' });
+    res.render('callback', {
+      success: false,
+      error: 'Token exchange failed. Please try again.',
+      code: null,
+      state: null,
+    });
   }
 });
 
 // =============================================================================
-// Step 4: Plugin calls this to refresh tokens
+// Token refresh endpoint (plugin calls this to refresh expired tokens)
 // =============================================================================
 app.post('/auth/refresh', async (req, res) => {
   const { refresh_token } = req.body;
