@@ -234,7 +234,7 @@
             });
         }
 
-        // Initialize on page load - auto-open picker immediately
+        // Initialize on page load
         window.onload = function() {
             loadPickerApi();
             initTokenClient();
@@ -243,21 +243,6 @@
             document.getElementById('pickBtn').addEventListener('click', openPicker);
             document.getElementById('confirmBtn').addEventListener('click', confirmSelection);
             document.getElementById('changeBtn').addEventListener('click', openPicker);
-
-            // Auto-open picker after a short delay for API to load
-            setTimeout(() => {
-                if (pickerLoaded) {
-                    openPicker();
-                } else {
-                    // Wait for picker to load, then open
-                    const checkLoaded = setInterval(() => {
-                        if (pickerLoaded) {
-                            clearInterval(checkLoaded);
-                            openPicker();
-                        }
-                    }, 100);
-                }
-            }, 500);
         };
 
         function openPicker() {
