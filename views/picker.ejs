@@ -281,10 +281,11 @@
                 .setTitle('Select your Vectrola wiki folder');
 
             // Pre-select files to grant drive.file access
-            if (FILE_IDS && FILE_IDS.length > 0) {
-                console.log('Pre-selecting', FILE_IDS.length, 'files for access grant');
-                builder.setFileIds(FILE_IDS);
-            }
+            // TODO: setFileIds() may have limits, disabled for now
+            // if (FILE_IDS && FILE_IDS.length > 0) {
+            //     console.log('Pre-selecting', FILE_IDS.length, 'files for access grant');
+            //     builder.setFileIds(FILE_IDS);
+            // }
 
             const picker = builder.build();
             picker.setVisible(true);
