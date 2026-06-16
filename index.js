@@ -11,18 +11,22 @@ app.set('trust proxy', 1);
 // Parse JSON bodies
 app.use(express.json());
 
-// Security headers
-app.use(helmet({
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'", "https://apis.google.com", "https://accounts.google.com"],
-      styleSrc: ["'self'", "'unsafe-inline'"],
-      frameSrc: ["https://docs.google.com", "https://drive.google.com"],
-      connectSrc: ["'self'", "https://www.googleapis.com", "https://accounts.google.com"],
+// Security headers (relaxed for /picker route)
+app.use((req, res, next) => {
+  // Skip strict CSP for picker page - Google Picker needs more permissive settings
+  if (req.path === '/picker') {
+    return next();
+  }
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+      },
     },
-  },
-}));
+  })(req, res, next);
+});
 
 // Rate limiting (100 requests per 15 minutes per IP)
 app.use(rateLimit({
