@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vectrola - Select Google Drive Folder</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        * {
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.5;
+        }
+        button {
+            background: #4285f4;
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            font-size: 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+        }
+        button:hover {
+            background: #3367d6;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(66, 133, 244, 0.4);
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+        }
+        .status.info {
+            display: block;
+            background: #e3f2fd;
+            color: #1565c0;
+        }
+        .status.error {
+            display: block;
+            background: #ffebee;
+            color: #c62828;
+        }
+        .status.success {
+            display: block;
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+        .selected-folder {
+            margin-top: 25px;
+            padding: 20px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            display: none;
+        }
+        .selected-folder.visible {
+            display: block;
+        }
+        .folder-name {
+            font-size: 18px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 15px;
+        }
+        .folder-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .confirm-btn {
+            background: #34a853;
+            margin-top: 10px;
+        }
+        .confirm-btn:hover {
+            background: #2d8e47;
+        }
+        .change-btn {
+            background: transparent;
+            color: #666;
+            padding: 10px 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        .change-btn:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+        .loader {
+            display: none;
+            margin: 20px auto;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4285f4;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+        }
+        .loader.visible {
+            display: block;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .success-screen {
+            display: none;
+        }
+        .success-screen.visible {
+            display: block;
+        }
+        .success-icon {
+            font-size: 64px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="mainContent">
+            <h1>🎵 Vectrola</h1>
+            <p class="subtitle">
+                Select the Google Drive folder containing your Vectrola wiki.<br>
+                This grants the app access <strong>only</strong> to this folder.
+            </p>
+
+            <button id="pickBtn" onclick="openPicker()">
+                <span>📁</span> Select Folder
+            </button>
+
+            <div class="loader" id="loader"></div>
+            <div id="status" class="status"></div>
+
+            <div id="selectedFolder" class="selected-folder">
+                <div class="folder-icon">📁</div>
+                <div class="folder-name" id="folderName"></div>
+                <button class="confirm-btn" onclick="confirmSelection()">
+                    ✓ Use This Folder
+                </button>
+                <button class="change-btn" onclick="openPicker()">
+                    Change Selection
+                </button>
+            </div>
+        </div>
+
+        <div id="successScreen" class="success-screen">
+            <div class="success-icon">✅</div>
+            <h2 style="color: #2e7d32; margin-bottom: 10px;">Success!</h2>
+            <p style="color: #666; margin-bottom: 20px;">
+                Vectrola now has access to:<br>
+                <strong id="successFolderName"></strong>
+            </p>
+            <p style="color: #999; font-size: 14px;">
+                Returning to Obsidian...
+            </p>
+        </div>
+    </div>
+
+    <!-- Google Picker API -->
+    <script src="https://apis.google.com/js/api.js"></script>
+
+    <script>
+        const CLIENT_ID = '<%= clientId %>';
+        const API_KEY = '<%= apiKey %>';
+        const ACCESS_TOKEN = '<%= accessToken %>';
+        const STATE = '<%= state %>';
+
+        let pickerLoaded = false;
+        let selectedFolder = null;
+
+        // Extract app ID from client ID (project number)
+        const APP_ID = CLIENT_ID.split('-')[0];
+
+        // Load the Picker API
+        function loadPickerApi() {
+            gapi.load('picker', () => {
+                pickerLoaded = true;
+                console.log('Picker API loaded');
+            });
+        }
+
+        // Initialize on page load
+        window.onload = function() {
+            loadPickerApi();
+        };
+
+        function openPicker() {
+            if (!pickerLoaded) {
+                showStatus('info', 'Loading Google Picker... Please wait.');
+                setTimeout(openPicker, 500);
+                return;
+            }
+
+            // Create folder-only view
+            const folderView = new google.picker.DocsView()
+                .setIncludeFolders(true)
+                .setSelectFolderEnabled(true)
+                .setMimeTypes('application/vnd.google-apps.folder');
+
+            const picker = new google.picker.PickerBuilder()
+                .setAppId(APP_ID)
+                .setOAuthToken(ACCESS_TOKEN)
+                .setDeveloperKey(API_KEY)
+                .addView(folderView)
+                .setCallback(pickerCallback)
+                .setTitle('Select your Vectrola wiki folder')
+                .build();
+
+            picker.setVisible(true);
+        }
+
+        function pickerCallback(data) {
+            if (data.action === google.picker.Action.PICKED) {
+                const doc = data.docs[0];
+                selectedFolder = {
+                    id: doc.id,
+                    name: doc.name
+                };
+
+                // Show selected folder
+                document.getElementById('folderName').textContent = selectedFolder.name;
+                document.getElementById('selectedFolder').classList.add('visible');
+                document.getElementById('status').style.display = 'none';
+                document.getElementById('pickBtn').style.display = 'none';
+            } else if (data.action === google.picker.Action.CANCEL) {
+                console.log('Picker cancelled');
+            }
+        }
+
+        function confirmSelection() {
+            if (!selectedFolder) {
+                showStatus('error', 'Please select a folder first.');
+                return;
+            }
+
+            // Show loading state
+            document.getElementById('selectedFolder').classList.remove('visible');
+            document.getElementById('loader').classList.add('visible');
+            showStatus('info', 'Connecting to Obsidian...');
+
+            // Build Obsidian URL with folder info
+            const obsidianUrl = `obsidian://vectrola-picker?` +
+                `folder_id=${encodeURIComponent(selectedFolder.id)}` +
+                `&folder_name=${encodeURIComponent(selectedFolder.name)}` +
+                `&state=${encodeURIComponent(STATE)}`;
+
+            // Show success screen
+            document.getElementById('mainContent').style.display = 'none';
+            document.getElementById('successScreen').classList.add('visible');
+            document.getElementById('successFolderName').textContent = selectedFolder.name;
+
+            // Redirect to Obsidian
+            setTimeout(() => {
+                window.location.href = obsidianUrl;
+            }, 500);
+        }
+
+        function showStatus(type, message) {
+            const status = document.getElementById('status');
+            status.className = 'status ' + type;
+            status.textContent = message;
+        }
+    </script>
+</body>
+</html>

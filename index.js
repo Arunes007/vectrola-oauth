@@ -16,8 +16,10 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "https://apis.google.com", "https://accounts.google.com"],
       styleSrc: ["'self'", "'unsafe-inline'"],
+      frameSrc: ["https://docs.google.com", "https://drive.google.com"],
+      connectSrc: ["'self'", "https://www.googleapis.com", "https://accounts.google.com"],
     },
   },
 }));
@@ -201,6 +203,24 @@ app.post('/auth/refresh', async (req, res) => {
 // Health check for Railway
 app.get('/health', (req, res) => {
   res.status(200).send('OK');
+});
+
+// =============================================================================
+// Google Picker page for folder selection
+// =============================================================================
+app.get('/picker', (req, res) => {
+  const { access_token, state } = req.query;
+
+  if (!access_token) {
+    return res.status(400).send('Missing access_token');
+  }
+
+  res.render('picker', {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    apiKey: process.env.GOOGLE_API_KEY || '',
+    accessToken: access_token,
+    state: state || '',
+  });
 });
 
 // Root redirect to GitHub
