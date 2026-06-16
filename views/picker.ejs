@@ -272,6 +272,14 @@
                 .setSelectFolderEnabled(true)
                 .setMimeTypes('application/vnd.google-apps.folder');
 
+            // Create a separate view for pre-selecting music files (grants drive.file access)
+            let musicFilesView = null;
+            if (FILE_IDS && FILE_IDS.length > 0) {
+                console.log('Pre-selecting', FILE_IDS.length, 'files for access grant');
+                musicFilesView = new google.picker.DocsView()
+                    .setFileIds(FILE_IDS);
+            }
+
             const builder = new google.picker.PickerBuilder()
                 .setAppId(APP_ID)
                 .setOAuthToken(accessToken)
@@ -280,12 +288,10 @@
                 .setCallback(pickerCallback)
                 .setTitle('Select your Vectrola wiki folder');
 
-            // Pre-select files to grant drive.file access
-            // TODO: setFileIds() may have limits, disabled for now
-            // if (FILE_IDS && FILE_IDS.length > 0) {
-            //     console.log('Pre-selecting', FILE_IDS.length, 'files for access grant');
-            //     builder.setFileIds(FILE_IDS);
-            // }
+            // Add music files view if we have file IDs
+            if (musicFilesView) {
+                builder.addView(musicFilesView);
+            }
 
             const picker = builder.build();
             picker.setVisible(true);
