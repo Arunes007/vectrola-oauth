@@ -213,11 +213,11 @@ app.get('/health', (req, res) => {
 // Get user's GDrive file IDs from Qdrant (for picker pre-selection)
 // =============================================================================
 app.get('/user-files', async (req, res) => {
-  const { email } = req.query;
+  const { user_id } = req.query;
   const authHeader = req.headers.authorization;
 
-  if (!authHeader || !email) {
-    return res.status(400).json({ error: 'Missing email or authorization' });
+  if (!authHeader || !user_id) {
+    return res.status(400).json({ error: 'Missing user_id or authorization' });
   }
 
   try {
@@ -234,7 +234,7 @@ app.get('/user-files', async (req, res) => {
         filter: {
           must: [{
             key: 'user_ids',
-            match: { any: [email] }
+            match: { any: [user_id] }
           }]
         },
         limit: 1000,
