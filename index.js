@@ -210,10 +210,55 @@ app.get('/health', (req, res) => {
 });
 
 // =============================================================================
+// Get user's GDrive file IDs from Qdrant (for picker pre-selection)
+// =============================================================================
+app.get('/user-files', async (req, res) => {
+  const { email } = req.query;
+  const authHeader = req.headers.authorization;
+
+  if (!authHeader || !email) {
+    return res.status(400).json({ error: 'Missing email or authorization' });
+  }
+
+  try {
+    const qdrantUrl = process.env.QDRANT_URL || 'http://localhost:6333';
+    const qdrantKey = process.env.QDRANT_API_KEY;
+
+    const response = await fetch(`${qdrantUrl}/collections/vectrola_library/points/scroll`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(qdrantKey && { 'api-key': qdrantKey }),
+      },
+      body: JSON.stringify({
+        filter: {
+          must: [{
+            key: 'user_ids',
+            match: { any: [email] }
+          }]
+        },
+        limit: 1000,
+        with_payload: ['gdrive_file_id'],
+      }),
+    });
+
+    const data = await response.json();
+    const fileIds = (data.result?.points || [])
+      .map(p => p.payload?.gdrive_file_id)
+      .filter(Boolean);
+
+    res.json({ file_ids: fileIds });
+  } catch (err) {
+    console.error('Qdrant query failed:', err);
+    res.status(500).json({ error: 'Failed to fetch file IDs' });
+  }
+});
+
+// =============================================================================
 // Google Picker page for folder selection
 // =============================================================================
 app.get('/picker', (req, res) => {
-  const { access_token, state } = req.query;
+  const { access_token, state, file_ids } = req.query;
 
   if (!access_token) {
     return res.status(400).send('Missing access_token');
@@ -224,6 +269,7 @@ app.get('/picker', (req, res) => {
     apiKey: process.env.GOOGLE_API_KEY || '',
     accessToken: access_token,
     state: state || '',
+    fileIds: file_ids ? file_ids.split(',') : [],
   });
 });
 

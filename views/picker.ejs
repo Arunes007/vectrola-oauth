@@ -199,6 +199,7 @@
         const API_KEY = '<%= apiKey %>';
         const STATE = '<%= state %>';
         const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        const FILE_IDS = <%- JSON.stringify(fileIds || []) %>;
 
         let accessToken = null;
         let pickerLoaded = false;
@@ -271,15 +272,21 @@
                 .setSelectFolderEnabled(true)
                 .setMimeTypes('application/vnd.google-apps.folder');
 
-            const picker = new google.picker.PickerBuilder()
+            const builder = new google.picker.PickerBuilder()
                 .setAppId(APP_ID)
                 .setOAuthToken(accessToken)
                 .setDeveloperKey(API_KEY)
                 .addView(folderView)
                 .setCallback(pickerCallback)
-                .setTitle('Select your Vectrola wiki folder')
-                .build();
+                .setTitle('Select your Vectrola wiki folder');
 
+            // Pre-select files to grant drive.file access
+            if (FILE_IDS && FILE_IDS.length > 0) {
+                console.log('Pre-selecting', FILE_IDS.length, 'files for access grant');
+                builder.setFileIds(FILE_IDS);
+            }
+
+            const picker = builder.build();
             picker.setVisible(true);
         }
 
