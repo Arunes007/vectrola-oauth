@@ -206,8 +206,7 @@
         let selectedFolder = null;
 
         // APP_ID is the Google Cloud project number (numeric prefix of CLIENT_ID)
-        // If your CLIENT_ID doesn't follow standard format, pass projectId explicitly from server
-        const APP_ID = '<%= projectId || clientId.split("-")[0] %>';
+        const APP_ID = '<%= clientId.split("-")[0] %>';
 
         // Load Picker API
         function loadPickerApi() {
