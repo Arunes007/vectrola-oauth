@@ -197,19 +197,19 @@
     <script>
         const CLIENT_ID = '<%= clientId %>';
         const API_KEY = '<%= apiKey %>';
-        const PASSED_ACCESS_TOKEN = '<%= accessToken %>';
         const STATE = '<%= state %>';
         const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
-        let accessToken = PASSED_ACCESS_TOKEN; // Start with passed token
+        let accessToken = null;
         let pickerLoaded = false;
         let tokenClient = null;
         let selectedFolder = null;
 
-        // Extract app ID from client ID (project number)
-        const APP_ID = CLIENT_ID.split('-')[0];
+        // APP_ID is the Google Cloud project number (numeric prefix of CLIENT_ID)
+        // If your CLIENT_ID doesn't follow standard format, pass projectId explicitly from server
+        const APP_ID = '<%= projectId || clientId.split("-")[0] %>';
 
-        // Load the Picker API
+        // Load Picker API
         function loadPickerApi() {
             gapi.load('picker', () => {
                 pickerLoaded = true;
@@ -217,7 +217,7 @@
             });
         }
 
-        // Initialize Google Identity Services for fresh token if needed
+        // Initialize GIS Token Client
         function initTokenClient() {
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
@@ -225,26 +225,28 @@
                 callback: (response) => {
                     if (response.error) {
                         showStatus('error', 'Authentication failed: ' + response.error);
+                        document.getElementById('loader').classList.remove('visible');
+                        document.getElementById('pickBtn').style.display = 'inline-flex';
                         return;
                     }
                     accessToken = response.access_token;
-                    console.log('Got fresh access token');
-                    openPickerWithToken();
+                    console.log('Got fresh access token via GIS');
+                    document.getElementById('loader').classList.remove('visible');
+                    createGooglePicker();
                 },
             });
         }
 
-        // Initialize on page load
         window.onload = function() {
             loadPickerApi();
             initTokenClient();
 
-            // Attach event listeners (CSP-compliant, no inline handlers)
             document.getElementById('pickBtn').addEventListener('click', openPicker);
             document.getElementById('confirmBtn').addEventListener('click', confirmSelection);
             document.getElementById('changeBtn').addEventListener('click', openPicker);
         };
 
+        // Called on user click - requests fresh token
         function openPicker() {
             if (!pickerLoaded) {
                 showStatus('info', 'Loading Google Picker... Please wait.');
@@ -252,13 +254,19 @@
                 return;
             }
 
-            // Try with passed token first, if it fails we'll get a fresh one
-            openPickerWithToken();
+            // Show loading, hide button
+            document.getElementById('pickBtn').style.display = 'none';
+            document.getElementById('selectedFolder').classList.remove('visible');
+            document.getElementById('loader').classList.add('visible');
+            showStatus('info', 'Requesting authorization...');
+
+            // ALWAYS request fresh token from user gesture
+            // This is the Safari-compliant approach
+            tokenClient.requestAccessToken({prompt: ''});
         }
 
-        function openPickerWithToken() {
-
-            // Create folder-only view
+        // Create picker with fresh token
+        function createGooglePicker() {
             const folderView = new google.picker.DocsView()
                 .setIncludeFolders(true)
                 .setSelectFolderEnabled(true)
@@ -279,25 +287,17 @@
         function pickerCallback(data) {
             if (data.action === google.picker.Action.PICKED) {
                 const doc = data.docs[0];
-                selectedFolder = {
-                    id: doc.id,
-                    name: doc.name
-                };
+                selectedFolder = { id: doc.id, name: doc.name };
 
-                // Show selected folder
                 document.getElementById('folderName').textContent = selectedFolder.name;
                 document.getElementById('selectedFolder').classList.add('visible');
                 document.getElementById('status').style.display = 'none';
-                document.getElementById('pickBtn').style.display = 'none';
             } else if (data.action === google.picker.Action.CANCEL) {
                 console.log('Picker cancelled');
+                document.getElementById('pickBtn').style.display = 'inline-flex';
             } else if (data[google.picker.Response.ACTION] === 'error') {
-                // Token might be invalid, try getting a fresh one via GIS
-                console.log('Picker error, requesting fresh token via Google Identity Services');
-                showStatus('info', 'Refreshing authentication...');
-                if (tokenClient) {
-                    tokenClient.requestAccessToken({prompt: ''});
-                }
+                showStatus('error', 'Picker error. Please click Select Folder to try again.');
+                document.getElementById('pickBtn').style.display = 'inline-flex';
             }
         }
 
@@ -307,25 +307,23 @@
                 return;
             }
 
-            // Show loading state
             document.getElementById('selectedFolder').classList.remove('visible');
             document.getElementById('loader').classList.add('visible');
             showStatus('info', 'Connecting to Obsidian...');
 
-            // Build Obsidian URL with folder info
             const obsidianUrl = `obsidian://vectrola-picker?` +
                 `folder_id=${encodeURIComponent(selectedFolder.id)}` +
                 `&folder_name=${encodeURIComponent(selectedFolder.name)}` +
                 `&state=${encodeURIComponent(STATE)}`;
 
-            // Show success screen
             document.getElementById('mainContent').style.display = 'none';
             document.getElementById('successScreen').classList.add('visible');
             document.getElementById('successFolderName').textContent = selectedFolder.name;
 
-            // Redirect to Obsidian
             setTimeout(() => {
                 window.location.href = obsidianUrl;
+                // Close popup after handoff so it doesn't linger
+                setTimeout(() => { window.close(); }, 1000);
             }, 500);
         }
 
