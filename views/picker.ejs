@@ -189,16 +189,21 @@
         </div>
     </div>
 
+    <!-- Google Identity Services for fresh token -->
+    <script src="https://accounts.google.com/gsi/client"></script>
     <!-- Google Picker API -->
     <script src="https://apis.google.com/js/api.js"></script>
 
     <script>
         const CLIENT_ID = '<%= clientId %>';
         const API_KEY = '<%= apiKey %>';
-        const ACCESS_TOKEN = '<%= accessToken %>';
+        const PASSED_ACCESS_TOKEN = '<%= accessToken %>';
         const STATE = '<%= state %>';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
 
+        let accessToken = PASSED_ACCESS_TOKEN; // Start with passed token
         let pickerLoaded = false;
+        let tokenClient = null;
         let selectedFolder = null;
 
         // Extract app ID from client ID (project number)
@@ -212,14 +217,47 @@
             });
         }
 
-        // Initialize on page load
+        // Initialize Google Identity Services for fresh token if needed
+        function initTokenClient() {
+            tokenClient = google.accounts.oauth2.initTokenClient({
+                client_id: CLIENT_ID,
+                scope: SCOPES,
+                callback: (response) => {
+                    if (response.error) {
+                        showStatus('error', 'Authentication failed: ' + response.error);
+                        return;
+                    }
+                    accessToken = response.access_token;
+                    console.log('Got fresh access token');
+                    openPickerWithToken();
+                },
+            });
+        }
+
+        // Initialize on page load - auto-open picker immediately
         window.onload = function() {
             loadPickerApi();
+            initTokenClient();
 
             // Attach event listeners (CSP-compliant, no inline handlers)
             document.getElementById('pickBtn').addEventListener('click', openPicker);
             document.getElementById('confirmBtn').addEventListener('click', confirmSelection);
             document.getElementById('changeBtn').addEventListener('click', openPicker);
+
+            // Auto-open picker after a short delay for API to load
+            setTimeout(() => {
+                if (pickerLoaded) {
+                    openPicker();
+                } else {
+                    // Wait for picker to load, then open
+                    const checkLoaded = setInterval(() => {
+                        if (pickerLoaded) {
+                            clearInterval(checkLoaded);
+                            openPicker();
+                        }
+                    }, 100);
+                }
+            }, 500);
         };
 
         function openPicker() {
@@ -229,6 +267,12 @@
                 return;
             }
 
+            // Try with passed token first, if it fails we'll get a fresh one
+            openPickerWithToken();
+        }
+
+        function openPickerWithToken() {
+
             // Create folder-only view
             const folderView = new google.picker.DocsView()
                 .setIncludeFolders(true)
@@ -237,7 +281,7 @@
 
             const picker = new google.picker.PickerBuilder()
                 .setAppId(APP_ID)
-                .setOAuthToken(ACCESS_TOKEN)
+                .setOAuthToken(accessToken)
                 .setDeveloperKey(API_KEY)
                 .addView(folderView)
                 .setCallback(pickerCallback)
@@ -262,6 +306,13 @@
                 document.getElementById('pickBtn').style.display = 'none';
             } else if (data.action === google.picker.Action.CANCEL) {
                 console.log('Picker cancelled');
+            } else if (data[google.picker.Response.ACTION] === 'error') {
+                // Token might be invalid, try getting a fresh one via GIS
+                console.log('Picker error, requesting fresh token via Google Identity Services');
+                showStatus('info', 'Refreshing authentication...');
+                if (tokenClient) {
+                    tokenClient.requestAccessToken({prompt: ''});
+                }
             }
         }
 
