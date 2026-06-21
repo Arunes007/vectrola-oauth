@@ -60,19 +60,20 @@ setInterval(() => {
 // Step 1: Plugin calls this to start auth flow (stores PKCE verifier)
 // =============================================================================
 app.post('/auth/start', (req, res) => {
-  const { state, code_verifier } = req.body;
+  const { state, code_verifier, client_type = 'obsidian' } = req.body;
 
   if (!state || !code_verifier) {
     return res.status(400).json({ error: 'Missing state or code_verifier' });
   }
 
-  // Store verifier for later token exchange
+  // Store verifier and client type for later token exchange
   pendingAuth.set(state, {
     code_verifier,
+    client_type,
     createdAt: Date.now(),
   });
 
-  console.log(`Auth started (state: ${state})`);
+  console.log(`Auth started (state: ${state}, client: ${client_type})`);
   res.json({ ok: true });
 });
 
@@ -114,7 +115,7 @@ app.get('/callback', async (req, res) => {
     });
   }
 
-  const { code_verifier } = authData;
+  const { code_verifier, client_type } = authData;
   pendingAuth.delete(state);
 
   // Exchange code for tokens server-side
@@ -144,16 +145,27 @@ app.get('/callback', async (req, res) => {
       });
     }
 
-    console.log(`Token exchange successful, redirecting to Obsidian (state: ${state})`);
+    console.log(`Token exchange successful (state: ${state}, client: ${client_type})`);
 
-    // Redirect to Obsidian with tokens
-    const obsidianUrl = `obsidian://vectrola-auth?` +
-      `access_token=${encodeURIComponent(tokens.access_token)}` +
-      `&refresh_token=${encodeURIComponent(tokens.refresh_token || '')}` +
-      `&expires_in=${tokens.expires_in}` +
-      `&state=${encodeURIComponent(state)}`;
+    // Different response based on client type
+    if (client_type === 'cli') {
+      // CLI: Render success page with tokens for manual copy/paste
+      return res.render('cli-success', {
+        access_token: tokens.access_token,
+        refresh_token: tokens.refresh_token || '',
+        expires_in: tokens.expires_in,
+        state: state
+      });
+    } else {
+      // Obsidian (default): Redirect to obsidian:// URL scheme
+      const obsidianUrl = `obsidian://vectrola-auth?` +
+        `access_token=${encodeURIComponent(tokens.access_token)}` +
+        `&refresh_token=${encodeURIComponent(tokens.refresh_token || '')}` +
+        `&expires_in=${tokens.expires_in}` +
+        `&state=${encodeURIComponent(state)}`;
 
-    res.redirect(obsidianUrl);
+      res.redirect(obsidianUrl);
+    }
   } catch (err) {
     console.error('Token exchange failed:', err);
     res.render('callback', {

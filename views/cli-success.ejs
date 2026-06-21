@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vectrola CLI - Authentication Successful</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 40px;
+    }
+    h1 {
+      color: #667eea;
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .success-icon {
+      font-size: 32px;
+    }
+    p {
+      color: #666;
+      margin-bottom: 30px;
+      line-height: 1.6;
+    }
+    .token-section {
+      margin-bottom: 20px;
+    }
+    .token-label {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 14px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .token-box {
+      background: #f5f7fa;
+      border: 2px solid #e1e4e8;
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'SF Mono', Monaco, 'Courier New', monospace;
+      font-size: 12px;
+      word-break: break-all;
+      color: #24292e;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+    .copy-btn {
+      background: #667eea;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 20px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: all 0.2s;
+      width: 100%;
+    }
+    .copy-btn:hover {
+      background: #5568d3;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+    }
+    .copy-btn:active {
+      transform: translateY(0);
+    }
+    .copy-btn.copied {
+      background: #10b981;
+    }
+    .footer {
+      margin-top: 30px;
+      padding-top: 20px;
+      border-top: 1px solid #e1e4e8;
+      color: #6a737d;
+      font-size: 13px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <span class="success-icon">✅</span>
+      Authentication Successful!
+    </h1>
+    <p>
+      Your Google Drive access has been granted.
+      Copy the tokens below and paste them into your terminal.
+    </p>
+
+    <div class="token-section">
+      <div class="token-label">Access Token</div>
+      <div class="token-box" id="access-token"><%= access_token %></div>
+      <button class="copy-btn" onclick="copyToken('access-token', this)">
+        📋 Copy Access Token
+      </button>
+    </div>
+
+    <div class="token-section">
+      <div class="token-label">Refresh Token</div>
+      <div class="token-box" id="refresh-token"><%= refresh_token %></div>
+      <button class="copy-btn" onclick="copyToken('refresh-token', this)">
+        📋 Copy Refresh Token
+      </button>
+    </div>
+
+    <div class="footer">
+      You can close this tab after copying both tokens.
+    </div>
+  </div>
+
+  <script>
+    function copyToken(id, btn) {
+      const text = document.getElementById(id).textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = btn.textContent;
+        btn.textContent = '✓ Copied!';
+        btn.classList.add('copied');
+        setTimeout(() => {
+          btn.textContent = originalText;
+          btn.classList.remove('copied');
+        }, 2000);
+      });
+    }
+  </script>
+</body>
+</html>
