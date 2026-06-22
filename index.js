@@ -60,20 +60,33 @@ setInterval(() => {
 // Step 1: Plugin calls this to start auth flow (stores PKCE verifier)
 // =============================================================================
 app.post('/auth/start', (req, res) => {
-  const { state, code_verifier, client_type = 'obsidian' } = req.body;
+  const { state, code_verifier, client_type = 'obsidian', callback_url } = req.body;
 
   if (!state || !code_verifier) {
     return res.status(400).json({ error: 'Missing state or code_verifier' });
   }
 
-  // Store verifier and client type for later token exchange
+  // Validate callback_url if provided (must be localhost for security)
+  if (callback_url) {
+    try {
+      const url = new URL(callback_url);
+      if (url.hostname !== '127.0.0.1' && url.hostname !== 'localhost') {
+        return res.status(400).json({ error: 'callback_url must be localhost' });
+      }
+    } catch {
+      return res.status(400).json({ error: 'Invalid callback_url' });
+    }
+  }
+
+  // Store verifier, client type, and callback URL for later token exchange
   pendingAuth.set(state, {
     code_verifier,
     client_type,
+    callback_url,  // For CLI localhost callback
     createdAt: Date.now(),
   });
 
-  console.log(`Auth started (state: ${state}, client: ${client_type})`);
+  console.log(`Auth started (state: ${state}, client: ${client_type}, callback: ${callback_url || 'none'})`);
   res.json({ ok: true });
 });
 
@@ -115,7 +128,7 @@ app.get('/callback', async (req, res) => {
     });
   }
 
-  const { code_verifier, client_type } = authData;
+  const { code_verifier, client_type, callback_url } = authData;
   pendingAuth.delete(state);
 
   // Exchange code for tokens server-side
@@ -149,7 +162,17 @@ app.get('/callback', async (req, res) => {
 
     // Different response based on client type
     if (client_type === 'cli') {
-      // CLI: Render success page with tokens for manual copy/paste
+      // CLI with callback_url: Redirect to localhost
+      if (callback_url) {
+        const redirectUrl = new URL(callback_url);
+        redirectUrl.searchParams.set('access_token', tokens.access_token);
+        redirectUrl.searchParams.set('refresh_token', tokens.refresh_token || '');
+        redirectUrl.searchParams.set('expires_in', tokens.expires_in);
+        redirectUrl.searchParams.set('state', state);
+        console.log(`Redirecting CLI to localhost callback: ${redirectUrl.origin}`);
+        return res.redirect(redirectUrl.toString());
+      }
+      // CLI without callback_url: Fallback to manual copy/paste page
       return res.render('cli-success', {
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token || '',
